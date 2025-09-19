@@ -52,6 +52,8 @@ import {
   TemplateItem,
 } from "../lib/path-to-json";
 
+
+
 interface TemplateFileTreeProps {
   data: TemplateItem;
   onFileSelect?: (file: TemplateFile) => void;
