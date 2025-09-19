@@ -29,9 +29,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DropdownMenuTrigger } from "@radix-ui/react-dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Play } from "next/font/google";
 import PlaygroundEditor from "@/modules/playground/components/playground-editor";
+import { is } from "date-fns/locale";
+import { useWebContainer } from "@/modules/webcontainers/hooks/useWebContainer";
+import WebContainerPreview from "@/modules/webcontainers/components/webcontainer-preview";
 
 const MainPlaygroundPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -50,6 +53,15 @@ const MainPlaygroundPage = () => {
     openFile,
     openFiles,
   } = useFileExplorer();
+
+  const{
+    serverUrl,
+    isLoading:containerLoading,
+    error:containerError,
+    instance,
+    writeFileSync
+      //@ts-ignore
+  } = useWebContainer({templateData});
 
   useEffect(() => {
     setPlaygroundId(id);
@@ -201,14 +213,33 @@ const MainPlaygroundPage = () => {
                   </Tabs>
                 </div>
                 <div className="flex-1">
-                  <ResizablePanelGroup direction ="horizontal" className="h-full">
-                    <ResizablePanel defaultSize = {isPreviewVisible ? 50 : 100}>
+                  <ResizablePanelGroup
+                    direction="horizontal"
+                    className="h-full"
+                  >
+                    <ResizablePanel defaultSize={isPreviewVisible ? 50 : 100}>
                       <PlaygroundEditor
-                       activeFile={activeFile}
-                       content = {activeFile?.content || ""}
-                       onContentChange={() => {}}
+                        activeFile={activeFile}
+                        content={activeFile?.content || ""}
+                        onContentChange={() => {}}
                       />
                     </ResizablePanel>
+                    {isPreviewVisible && (
+                      <>
+                        <ResizableHandle />
+                        <ResizablePanel defaultSize={50}>
+                          <WebContainerPreview
+                            templateData={templateData}
+                            instance={instance}
+                            writeFileSync={writeFileSync}
+                            isLoading={containerLoading}
+                            error={containerError}
+                            serverUrl={serverUrl!}
+                            forceResetup={false}
+                          />
+                        </ResizablePanel>
+                      </>
+                    )}
                   </ResizablePanelGroup>
                 </div>
               </div>
