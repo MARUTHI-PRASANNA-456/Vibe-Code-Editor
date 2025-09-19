@@ -9,6 +9,7 @@ import { WebContainer } from "@webcontainer/api";
 import { TemplateFolder } from "@/modules/playground/lib/path-to-json";
 import { is } from "date-fns/locale";
 import { set } from "zod";
+import TerminalComponent from "./terminal";
 
 interface WebContainerPreviewProps {
   templateData: TemplateFolder;
@@ -43,6 +44,24 @@ const WebContainerPreview = ({
   const [isSetupComplete, setIsSetupComplete] = useState(false);
   const [isSetupInProgress, setIsSetupInProgress] = useState(false);
 
+  const terminalRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (forceResetup) {
+      setIsSetupComplete(false);
+      setIsSetupInProgress(false);
+      setPreviewUrl("");
+      setCurrentStep(0);
+      setLoadingState({
+        transforming: false,
+        mounting: false,
+        installing: false,
+        starting: false,
+        ready: false,
+      });
+    }
+  }, [forceResetup]);
+
   useEffect(() => {
     async function setupContainer() {
       if (!instance || isSetupComplete || isSetupInProgress) return;
@@ -57,10 +76,19 @@ const WebContainerPreview = ({
             "utf8"
           );
           if (packageJsonExists) {
-            //TODO:Implement terminal Logic here
+            // Files are already mounted, just reconnect to existing server
+            if (terminalRef.current?.writeToTerminal) {
+              terminalRef.current.writeToTerminal(
+                "🔄 Reconnecting to existing WebContainer session...\r\n"
+              );
+            }
 
             instance.on("server-ready", (port: number, url: string) => {
-              //TODO: terminal logic here
+              if (terminalRef.current?.writeToTerminal) {
+                terminalRef.current.writeToTerminal(
+                  `🌐 Reconnected to server at ${url}\r\n`
+                );
+              }
 
               setPreviewUrl(url);
               setLoadingState((prev) => ({
@@ -69,15 +97,22 @@ const WebContainerPreview = ({
                 ready: true,
               }));
             });
+
             setCurrentStep(4);
             setLoadingState((prev) => ({ ...prev, starting: true }));
             return;
           }
         } catch (error) {}
+
         //step-1 Tranform data
         setLoadingState((prev) => ({ ...prev, transforming: true }));
         setCurrentStep(1);
-        //TODO terminal logic
+        // Write to terminal
+        if (terminalRef.current?.writeToTerminal) {
+          terminalRef.current.writeToTerminal(
+            "🔄 Transforming template data...\r\n"
+          );
+        }
 
         //@ts-ignore
         const files = transformToWebContainerFormat(templateData);
@@ -89,10 +124,18 @@ const WebContainerPreview = ({
         setCurrentStep(2);
 
         //step-2 Mount Files
-        //TODO Terminal Logic
-
+        if (terminalRef.current?.writeToTerminal) {
+          terminalRef.current.writeToTerminal(
+            "📁 Mounting files to WebContainer...\r\n"
+          );
+        }
         await instance.mount(files);
-        //TODO terminal logic
+
+        if (terminalRef.current?.writeToTerminal) {
+          terminalRef.current.writeToTerminal(
+            "✅ Files mounted successfully\r\n"
+          );
+        }
 
         setLoadingState((prev) => ({
           ...prev,
@@ -102,13 +145,20 @@ const WebContainerPreview = ({
         setCurrentStep(3);
 
         // Step-3 Install dependencies
-        //TODO terminal logic
+        if (terminalRef.current?.writeToTerminal) {
+          terminalRef.current.writeToTerminal(
+            "📦 Installing dependencies...\r\n"
+          );
+        }
 
         const installProcess = await instance.spawn("npm", ["install"]);
+
         installProcess.output.pipeTo(
           new WritableStream({
             write(data) {
-              //TODO terminal logic
+              if (terminalRef.current?.writeToTerminal) {
+                terminalRef.current.writeToTerminal(data);
+              }
             },
           })
         );
@@ -118,7 +168,11 @@ const WebContainerPreview = ({
             `Failed to install dependencies. Exit code: ${installExitCode}`
           );
         }
-        //TODO terminal logic
+        if (terminalRef.current?.writeToTerminal) {
+          terminalRef.current.writeToTerminal(
+            "✅ Dependencies installed successfully\r\n"
+          );
+        }
 
         setLoadingState((prev) => ({
           ...prev,
@@ -129,12 +183,21 @@ const WebContainerPreview = ({
 
         //Step-4 Start the server
 
-        //TODO terminal logic
+        if (terminalRef.current?.writeToTerminal) {
+          terminalRef.current.writeToTerminal(
+            "🚀 Starting development server...\r\n"
+          );
+        }
 
         const startProcess = await instance.spawn("npm", ["run", "start"]);
 
         instance.on("server-ready", (port: number, url: string) => {
-          //TODO terminal logic here
+          if (terminalRef.current?.writeToTerminal) {
+            terminalRef.current.writeToTerminal(
+              `🌐 Server ready at ${url}\r\n`
+            );
+          }
+
           setPreviewUrl(url);
           setLoadingState((prev) => ({
             ...prev,
@@ -148,14 +211,19 @@ const WebContainerPreview = ({
         startProcess.output.pipeTo(
           new WritableStream({
             write(data) {
-              //TODO terminal logic
+              if (terminalRef.current?.writeToTerminal) {
+                terminalRef.current.writeToTerminal(data);
+              }
             },
           })
         );
       } catch (err) {
         console.error("Error setting up container:", err);
         const errorMessage = err instanceof Error ? err.message : String(err);
-        //TODO terminal logic
+        if (terminalRef.current?.writeToTerminal) {
+          terminalRef.current.writeToTerminal(`❌ Error: ${errorMessage}\r\n`);
+        }
+
         setSetupError(errorMessage);
         setIsSetupInProgress(false);
         setLoadingState({
@@ -203,17 +271,15 @@ const WebContainerPreview = ({
     );
   }
 
-    const getStepIcon = (stepIndex: number) => {
-      if (stepIndex < currentStep) {
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
-      } else if (stepIndex === currentStep) {
-        return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />;
-      } else {
-        return (
-          <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-        );
-      }
-    };
+  const getStepIcon = (stepIndex: number) => {
+    if (stepIndex < currentStep) {
+      return <CheckCircle className="h-5 w-5 text-green-500" />;
+    } else if (stepIndex === currentStep) {
+      return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />;
+    } else {
+      return <div className="h-5 w-5 rounded-full border-2 border-gray-300" />;
+    }
+  };
 
   const getStepText = (stepIndex: number, label: string) => {
     const isActive = stepIndex === currentStep;
@@ -234,68 +300,68 @@ const WebContainerPreview = ({
     );
   };
 
-   return (
-     <div className="h-full w-full flex flex-col">
-       {!previewUrl ? (
-         <div className="h-full flex flex-col">
-           <div className="w-full max-w-md p-6 m-5 rounded-lg bg-white dark:bg-zinc-800 shadow-sm mx-auto">
-             <Progress
-               value={(currentStep / totalSteps) * 100}
-               className="h-2 mb-6"
-             />
+  return (
+    <div className="h-full w-full flex flex-col">
+      {!previewUrl ? (
+        <div className="h-full flex flex-col">
+          <div className="w-full max-w-md p-6 m-5 rounded-lg bg-white dark:bg-zinc-800 shadow-sm mx-auto">
+            <Progress
+              value={(currentStep / totalSteps) * 100}
+              className="h-2 mb-6"
+            />
 
-             <div className="space-y-4 mb-6">
-               <div className="flex items-center gap-3">
-                 {getStepIcon(1)}
-                 {getStepText(1, "Transforming template data")}
-               </div>
-               <div className="flex items-center gap-3">
-                 {getStepIcon(2)}
-                 {getStepText(2, "Mounting files")}
-               </div>
-               <div className="flex items-center gap-3">
-                 {getStepIcon(3)}
-                 {getStepText(3, "Installing dependencies")}
-               </div>
-               <div className="flex items-center gap-3">
-                 {getStepIcon(4)}
-                 {getStepText(4, "Starting development server")}
-               </div>
-             </div>
-           </div>
+            <div className="space-y-4 mb-6">
+              <div className="flex items-center gap-3">
+                {getStepIcon(1)}
+                {getStepText(1, "Transforming template data")}
+              </div>
+              <div className="flex items-center gap-3">
+                {getStepIcon(2)}
+                {getStepText(2, "Mounting files")}
+              </div>
+              <div className="flex items-center gap-3">
+                {getStepIcon(3)}
+                {getStepText(3, "Installing dependencies")}
+              </div>
+              <div className="flex items-center gap-3">
+                {getStepIcon(4)}
+                {getStepText(4, "Starting development server")}
+              </div>
+            </div>
+          </div>
 
-           {/* Terminal */}
-           <div className="flex-1 p-4">
-             {/* <TerminalComponent
+          {/* Terminal */}
+          <div className="flex-1 p-4">
+            <TerminalComponent
                ref={terminalRef}
                webContainerInstance={instance}
                theme="dark"
                className="h-full"
-             /> */}
-           </div>
-         </div>
-       ) : (
-         <div className="h-full flex flex-col">
-           <div className="flex-1">
-             <iframe
-               src={previewUrl}
-               className="w-full h-full border-none"
-               title="WebContainer Preview"
              />
-           </div>
+          </div>
+        </div>
+      ) : (
+        <div className="h-full flex flex-col">
+          <div className="flex-1">
+            <iframe
+              src={previewUrl}
+              className="w-full h-full border-none"
+              title="WebContainer Preview"
+            />
+          </div>
 
-           <div className="h-64 border-t">
-             {/* <TerminalComponent
+          <div className="h-64 border-t">
+            <TerminalComponent
                ref={terminalRef}
                webContainerInstance={instance}
                theme="dark"
                className="h-full"
-             /> */}
-           </div>
-         </div>
-       )}
-     </div>
-   );
+             />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default WebContainerPreview;
