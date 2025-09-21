@@ -43,7 +43,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { Play } from "next/font/google";
-import PlaygroundEditor from "@/modules/playground/components/playground-editor";
+import { PlaygroundEditor } from "@/modules/playground/components/playground-editor";
 import { is } from "date-fns/locale";
 import { useWebContainer } from "@/modules/webcontainers/hooks/useWebContainer";
 import WebContainerPreview from "@/modules/webcontainers/components/webcontainer-preview";
@@ -51,6 +51,7 @@ import LoadingStep from "@/modules/playground/components/loader";
 import { findFilePath } from "@/modules/playground/lib";
 import { toast } from "sonner";
 import ToggleAI from "@/modules/playground/components/toggle-ai";
+import { useAISuggestions } from "@/modules/playground/hooks/useAISuggestion";
 
 const MainPlaygroundPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -58,6 +59,9 @@ const MainPlaygroundPage = () => {
 
   const { playgroundData, templateData, isLoading, error, saveTemplateData } =
     usePlayground(id);
+
+  const aiSuggestions = useAISuggestions();
+
   const {
     setTemplateData,
     setActiveFileId,
@@ -403,9 +407,9 @@ const MainPlaygroundPage = () => {
                 </Tooltip>
 
                 <ToggleAI
-                  isEnabled={true}
-                  onToggle={() => {}}
-                  suggestionLoading={false}
+                  isEnabled={aiSuggestions.isEnabled}
+                  onToggle={aiSuggestions.toggleEnabled}
+                  suggestionLoading={aiSuggestions.isLoading}
                 />
 
                 <DropdownMenu>
@@ -490,6 +494,18 @@ const MainPlaygroundPage = () => {
                         content={activeFile?.content || ""}
                         onContentChange={(value) =>
                           activeFileId && updateFileContent(activeFileId, value)
+                        }
+                        suggestion={aiSuggestions.suggestion}
+                        suggestionLoading={aiSuggestions.isLoading}
+                        suggestionPosition={aiSuggestions.position}
+                        onAcceptSuggestion={(editor, monaco) =>
+                          aiSuggestions.acceptSuggestion(editor, monaco)
+                        }
+                        onRejectSuggestion={(editor) =>
+                          aiSuggestions.rejectSuggestion(editor)
+                        }
+                        onTriggerSuggestion={(type, editor) =>
+                          aiSuggestions.fetchSuggestion(type, editor)
                         }
                       />
                     </ResizablePanel>
