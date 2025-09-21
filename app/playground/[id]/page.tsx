@@ -50,10 +50,11 @@ import WebContainerPreview from "@/modules/webcontainers/components/webcontainer
 import LoadingStep from "@/modules/playground/components/loader";
 import { findFilePath } from "@/modules/playground/lib";
 import { toast } from "sonner";
+import ToggleAI from "@/modules/playground/components/toggle-ai";
 
 const MainPlaygroundPage = () => {
   const { id } = useParams<{ id: string }>();
-  const [isPreviewVisible, setIsPreviewVisible] = useState(false);
+  const [isPreviewVisible, setIsPreviewVisible] = useState(true);
 
   const { playgroundData, templateData, isLoading, error, saveTemplateData } =
     usePlayground(id);
@@ -385,7 +386,7 @@ const MainPlaygroundPage = () => {
                       <Save className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Save (cmd+S)</TooltipContent>
+                  <TooltipContent>Save (Ctrl+S)</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -398,12 +399,14 @@ const MainPlaygroundPage = () => {
                       <Save className="h-4 w-4" /> All
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Save All (cmd+Shift+S)</TooltipContent>
+                  <TooltipContent>Save All (Ctrl+Shift+S)</TooltipContent>
                 </Tooltip>
 
-                <Button variant={"default"} size={"icon"}>
-                  <Bot className="size-4" />
-                </Button>
+                <ToggleAI
+                  isEnabled={true}
+                  onToggle={() => {}}
+                  suggestionLoading={false}
+                />
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
